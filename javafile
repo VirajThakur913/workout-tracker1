@@ -1,0 +1,67 @@
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+@WebServlet("/addWorkout")
+public class WorkoutTracker extends HttpServlet {
+
+    private Connection connect() throws SQLException {
+        String url = "jdbc:mysql://localhost:3306/workout_db";
+        String user = "your_username";
+        String password = "your_password";
+        return DriverManager.getConnection(url, user, password);
+    }
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+        try {
+            String json = request.getReader().lines().collect(java.util.stream.Collectors.joining());
+            JSONObject obj = new JSONObject(json);
+            String date = obj.getString("date");
+            String exercise = obj.getString("exercise");
+            int duration = obj.getInt("duration");
+
+            try (Connection conn = connect()) {
+                PreparedStatement stmt = conn.prepareStatement("INSERT INTO workouts (date, exercise, duration) VALUES (?, ?, ?)");
+                stmt.setString(1, date);
+                stmt.setString(2, exercise);
+                stmt.setInt(3, duration);
+                stmt.executeUpdate();
+                out.print("{\"success\":true}");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            out.print("{\"success\":false}");
+        }
+    }
+
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        response.setContentType("application/json");
+        PrintWriter out = response.getWriter();
+        try (Connection conn = connect()) {
+            PreparedStatement stmt = conn.prepareStatement("SELECT * FROM workouts");
+            ResultSet rs = stmt.executeQuery();
+            JSONArray workouts = new JSONArray();
+            while (rs.next()) {
+                JSONObject workout = new JSONObject();
+                workout.put("date", rs.getString("date"));
+                workout.put("exercise", rs.getString("exercise"));
+                workout.put("duration", rs.getInt("duration"));
+                workouts.put(workout);
+            }
+            out.print("{\"workouts\":" + workouts.toString() + "}");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
